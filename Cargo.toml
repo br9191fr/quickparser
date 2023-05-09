@@ -10,4 +10,4 @@ name = "quick"
 path = "src/bin/quick.rs"
 
 [dependencies]
-quick-xml = "0.28"
+quick-xml = "0.28.2"
