@@ -1,13 +1,16 @@
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::BufReader;
-
+use std::collections::HashMap;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::reader::Reader;
 use serde::Deserialize;
 
-use data_encoding::HEXLOWER;
-use ring::digest::{Context, Digest, SHA256};
+
+//use ring::digest::{Context, Digest, SHA256};
+
+use chrono::{DateTime, Datelike};
+use chrono::{Duration, Utc};
 
 #[derive(Debug, PartialEq, Default, Deserialize)]
 #[serde(default)]
@@ -18,9 +21,85 @@ struct ObjectDigest {
     #[serde(rename = "$text")]
     text: String,
 }
-fn save_filename(
+fn ymd(s: &str) -> (i32,u32,u32) {
+    let rfc = DateTime::parse_from_rfc3339(s).unwrap();
+    let year = rfc.year();
+    let month = rfc.month();
+    let day = rfc.day();
+    (year, month, day)
+}
+fn save_sum_up(
     reader: &mut Reader<BufReader<File>>,
     element: BytesStart,
+) -> Result<String, quick_xml::Error> {
+    let mut d_year: i32 = 0;
+    let mut d_month: u32 = 0;
+    let mut d_day: u32 = 0;
+    let mut e_year: i32 = 0;
+    let mut e_month: u32 = 0;
+    let mut e_day: u32 = 0;
+    let mut attrs = HashMap::new();
+    let mut total = 0;
+    let sum_up: Vec<(String,String)> = element
+        .attributes()
+        .map(|att_result| {
+            match att_result {
+                Ok(a) => {
+                    let key = reader.decoder().decode(a.key.local_name().as_ref())
+                        .unwrap().to_string();
+                    let value = a.decode_and_unescape_value(&reader)
+                        .unwrap().to_string();
+                    match key.as_str() {
+                        "deposit-date" => {
+                            let (d_year, d_month, d_day) = ymd(value.as_str());
+                            let fmt = format!("{}/{}/{}",d_day,d_month,d_year);
+                            println!("Deposit date: {}",fmt);
+                            total += 1;
+                        },
+                        "end-of-life-date" => {
+                            (e_year, e_month, e_day) = ymd(value.as_str());
+                            let fmt = format!("{}/{}/{}",e_day,e_month,e_year);
+                            println!("End of life date: {}",fmt);
+                            total += 2;
+                        },
+                        "uri" => {
+                            println!("{}: {}",key,value);
+                            total += 4;
+                        }
+                        _ => ()
+                    }
+                    attrs.insert(key.clone(), value.clone());
+                    (key, value)
+                },
+                Err(_e) => {
+                    (String::new(), String::new())
+                }
+            }
+    })
+        .collect();
+    //println!("Sum-up : {:#?}",sum_up);
+    // TODO check deposit-date and end-of-life-date
+    if total == 7 {
+        let d_date = attrs.get("deposit-date").unwrap();
+        let e_date = attrs.get("end-of-life-date").unwrap();
+        let uri = attrs.get("uri").unwrap();
+        println!("Two dates and one uri found");
+        let actual = Utc::now().timestamp();
+        let end = DateTime::parse_from_rfc3339(e_date.as_str()).unwrap().timestamp();
+        let end2 = DateTime::parse_from_rfc3339("2023-01-01T12:00:00.0Z").unwrap().timestamp();
+        if end2 < actual {
+            println!("end date reached");
+        }
+        else {
+            println!("end date not reached");
+        }
+    }
+
+    Ok("OK".to_string())
+}
+
+fn save_filename(
+    reader: &mut Reader<BufReader<File>>
 ) -> Result<String, quick_xml::Error> {
     let mut element_buf = Vec::new();
     let _event = reader.read_event_into(&mut element_buf)?;
@@ -89,9 +168,15 @@ fn main() -> Result<(), quick_xml::Error> {
                 b"file-name" => {
                     println!("filename found");
                     count += 1;
-                    save_filename(&mut reader, element)?;
-                    // TODO comput and check hash of file
+                    save_filename(&mut reader)?;
+                    // TODO compute and check hash of file
                 },
+                // TODO extract sum-up attributes
+                b"sum-up" => {
+                    println!("sum-up found");
+                    save_sum_up(&mut reader, element)?;
+                }
+                // TODO extract dc:xx fields from descriptive-metadata
                 _ => (),
             },
             Event::Eof => break,

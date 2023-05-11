@@ -18,3 +18,4 @@ quick-xml = { version = "0.28.2", features = ["serde-types", "serialize"]}
 serde = { version = "1.0.124", features = ["derive"] }
 data-encoding = "2.3.3"
 ring = "0.16.20"
+chrono = "0.4.24"
