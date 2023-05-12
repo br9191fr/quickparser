@@ -101,9 +101,17 @@ fn add_dc(reader: &mut Reader<BufReader<File>>, hm: &mut HashMap<String, String>
     let mut element_buf = Vec::new();
     let _event = reader.read_event_into(&mut element_buf).unwrap();
     let s = String::from_utf8(element_buf).unwrap();
-    //println!("Need to add value {} to key {}",s.trim(), what);
     if hm.get(what.as_str()).is_some() {
-        println!("--- Key {} already exists", what);
+        //println!("--- Key {} already exists", what);
+        hm.get(what.as_str()).unwrap();
+        let tmp = hm.get(what.as_str()).unwrap();
+        let mut old_value  = tmp.clone();
+        old_value.push('|');
+        old_value.push_str(s.as_str());
+        if !hm.insert(what.clone(), old_value.clone()).is_some() {
+            println!("Unable to insert {} for key {}",old_value, what);
+        }
+
     }
     else {
         hm.insert(what, s);
@@ -205,6 +213,11 @@ fn main() -> Result<(), quick_xml::Error> {
             _ =>(),
         }
     }
+    let m = dc_attrs.iter().collect::<Vec<_>>();
+    for (k, v) in &m
+        {
+            println!("key {} => {}", k,v)
+        };
     //println!("read {} start events in total", count);
     if count != 5 {
         Err(quick_xml::Error::TextNotFound)
@@ -212,4 +225,6 @@ fn main() -> Result<(), quick_xml::Error> {
     else {
         Ok(())
     }
+
+
 }
