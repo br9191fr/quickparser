@@ -97,14 +97,25 @@ fn save_sum_up(
 
     Ok("OK".to_string())
 }
-
+fn add_dc(reader: &mut Reader<BufReader<File>>, hm: &mut HashMap<String, String>, what: String) {
+    let mut element_buf = Vec::new();
+    let _event = reader.read_event_into(&mut element_buf).unwrap();
+    let s = String::from_utf8(element_buf).unwrap();
+    //println!("Need to add value {} to key {}",s.trim(), what);
+    if hm.get(what.as_str()).is_some() {
+        println!("--- Key {} already exists", what);
+    }
+    else {
+        hm.insert(what, s);
+    }
+}
 fn save_filename(
     reader: &mut Reader<BufReader<File>>
 ) -> Result<String, quick_xml::Error> {
     let mut element_buf = Vec::new();
     let _event = reader.read_event_into(&mut element_buf)?;
     let s = String::from_utf8(element_buf)?;
-    println!("Found filename[{}]",s.trim());
+    //println!("Found filename[{}]",s.trim());
     Ok(s.trim().parse().unwrap())
 }
 
@@ -127,7 +138,7 @@ fn save_digest(
     let mut element_buf = Vec::new();
     let _event = reader.read_event_into(&mut element_buf)?;
     let s = String::from_utf8(element_buf)?;
-    println!("Found [{}]",s.trim());
+    //println!("Found [{}]",s.trim());
     Ok(ObjectDigest {
         object_type,
         algorithm: algo.to_string(),
@@ -143,10 +154,21 @@ fn main() -> Result<(), quick_xml::Error> {
     let mut buf = Vec::new();
 
     let mut count = 0;
-
+    let mut dc_attrs : HashMap<String, String> = HashMap::new();
     loop {
         let event = reader.read_event_into(&mut buf)?;
-
+        let evt2 = event.clone();
+        match evt2 {
+            Event::Start(elt) => {
+                if elt.name().as_ref().starts_with("dc:".as_ref()) {
+                    let info = String::from_utf8_lossy(elt.name().as_ref()).to_string();
+                    //println!("Found dc: elt => {}",info);
+                    add_dc(&mut reader, &mut dc_attrs,info);
+                }
+            },
+            Event::Eof => break,
+            _ =>(),
+        }
         match event {
             Event::Start(element) => match element.name().as_ref() {
                 b"applicative-metadata-digest" => {
